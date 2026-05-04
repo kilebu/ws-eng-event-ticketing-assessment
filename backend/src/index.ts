@@ -32,7 +32,7 @@ app.use("/api/events", promoCodeRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/waitlist", waitlistRoutes);
+app.use("/api/events", waitlistRoutes);
 
 // 404 handler
 app.use((req, res) => {

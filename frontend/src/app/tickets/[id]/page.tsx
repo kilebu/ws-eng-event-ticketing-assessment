@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { Alert } from "@/components/ui/Alert";
+import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 
 export default function TicketPage() {
   const params = useParams();
@@ -20,6 +22,11 @@ export default function TicketPage() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferEmail, setTransferEmail] = useState("");
+  const [transferError, setTransferError] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferSuccess, setTransferSuccess] = useState("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -39,6 +46,31 @@ export default function TicketPage() {
       .catch((err) => setError(err.message))
       .finally(() => setIsLoading(false));
   }, [user, token, authLoading, router, params.id]);
+
+  const handleTransfer = async () => {
+    if (!transferEmail.trim()) {
+      setTransferError("Please enter a recipient email");
+      return;
+    }
+
+    if (!token || !booking) {
+      setTransferError("Failed to transfer");
+      return;
+    }
+
+    setIsTransferring(true);
+    setTransferError("");
+
+    try {
+      await bookingsAPI.transfer(token, booking.id, transferEmail.trim());
+      setTransferSuccess("Ticket transferred successfully!");
+      setTimeout(() => router.push("/bookings"), 1500);
+    } catch (err) {
+      setTransferError(err instanceof Error ? err.message : "Failed to transfer");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
 
   if (authLoading || isLoading) {
     return <div className="flex items-center justify-center min-h-[50vh]"><Spinner size="lg" /></div>;
@@ -111,6 +143,9 @@ export default function TicketPage() {
               <Button className="w-full" onClick={() => qrCode && window.open(qrCode, "_blank")}>
                 Download QR Code
               </Button>
+              <Button variant="danger" className="w-full" onClick={() => setShowTransferModal(true)}>
+                Transfer Ticket
+              </Button>
               <Button variant="ghost" className="w-full" onClick={() => router.push("/bookings")}>
                 Back to Bookings
               </Button>
@@ -118,6 +153,27 @@ export default function TicketPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Modal isOpen={showTransferModal} onClose={() => setShowTransferModal(false)} title="Transfer Ticket">
+        <div className="space-y-4">
+          {transferSuccess && <Alert variant="success">{transferSuccess}</Alert>}
+          {transferError && <Alert variant="error">{transferError}</Alert>}
+          <Input
+            placeholder="Recipient email address"
+            value={transferEmail}
+            onChange={(e) => setTransferEmail(e.target.value)}
+            disabled={isTransferring}
+          />
+          <Button
+            className="w-full"
+            onClick={handleTransfer}
+            isLoading={isTransferring}
+            disabled={!transferEmail.trim()}
+          >
+            Transfer Ticket
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -176,6 +176,19 @@ export const bookingsAPI = {
       token,
     }),
 
+  transfer: async (token: string, bookingId: string, recipientEmail: string): Promise<{ data: import("@/types").Booking }> => {
+    const response = await fetchAPI<{ success: boolean; data: import("@/types").Booking }>(
+      `/api/bookings/${bookingId}/transfer`,
+      {
+        method: "POST",
+        body: JSON.stringify({ recipientEmail }),
+        token,
+      }
+    );
+
+    return { data: response.data };
+  },
+
   cancel: (token: string, id: string) =>
     fetchAPI<{
       success: boolean;
@@ -190,6 +203,51 @@ export const bookingsAPI = {
 
   getQR: (token: string, id: string) =>
     fetchAPI<{ success: boolean; data: { qrCode: string; ticketCode: string } }>(`/api/bookings/${id}/qr`, { token }),
+};
+
+// Waitlist API
+export const waitlistAPI = {
+  join: async (token: string, eventId: string): Promise<{ data: { position: number; joinedAt: string } }> => {
+    const response = await fetchAPI<{ success: boolean; position: number; joinedAt: string }>(
+      `/api/events/${eventId}/waitlist`,
+      {
+        method: "POST",
+        token,
+      }
+    );
+
+    return {
+      data: {
+        position: response.position,
+        joinedAt: response.joinedAt,
+      },
+    };
+  },
+
+  getPosition: async (token: string, eventId: string): Promise<{ data: { position: number | null } }> => {
+    const response = await fetchAPI<{ position: number | null }>(`/api/events/${eventId}/waitlist/position`, {
+      token,
+    });
+
+    return {
+      data: {
+        position: response.position,
+      },
+    };
+  },
+
+  leave: async (token: string, eventId: string): Promise<{ data: { success: boolean } }> => {
+    const response = await fetchAPI<{ success: boolean }>(`/api/events/${eventId}/waitlist`, {
+      method: "DELETE",
+      token,
+    });
+
+    return {
+      data: {
+        success: response.success,
+      },
+    };
+  },
 };
 
 // Dashboard API

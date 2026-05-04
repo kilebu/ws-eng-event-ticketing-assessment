@@ -158,6 +158,16 @@ export default function BookingsPage() {
               </CardContent>
             </Card>
           ))}
+
+          <Card>
+            <CardContent>
+              <p className="text-sm text-gray-600">
+                Waitlist entries are currently shown on each event detail page. To verify waitlist promotion,
+                join the waitlist from a sold-out event, then have another user cancel their booking and check
+                this page for your new confirmed ticket.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       )}
 

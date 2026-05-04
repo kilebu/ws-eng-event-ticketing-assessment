@@ -158,7 +158,9 @@ export default function HomePage() {
                         {!isSoldOut && <span className="text-sm text-gray-500 ml-2">{remainingTickets} left</span>}
                       </div>
                       <Link href={`/events/${event.id}`}>
-                        <Button size="sm" disabled={isSoldOut}>{isSoldOut ? "Sold Out" : "Get Tickets"}</Button>
+                        <Button size="sm" variant={isSoldOut ? "secondary" : "primary"}>
+                          {isSoldOut ? "Join Waitlist" : "Get Tickets"}
+                        </Button>
                       </Link>
                     </div>
                   </CardContent>

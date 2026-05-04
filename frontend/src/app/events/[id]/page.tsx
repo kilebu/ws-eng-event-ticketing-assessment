@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Event, SeatTier } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
-import { eventsAPI, bookingsAPI, promoCodesAPI } from "@/lib/api";
+import { eventsAPI, bookingsAPI, promoCodesAPI, waitlistAPI } from "@/lib/api";
 import { formatDate, formatTime, formatCurrency } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -30,6 +30,9 @@ export default function EventPage() {
   const [promoDiscount, setPromoDiscount] = useState<{ type: string; value: number } | null>(null);
   const [promoError, setPromoError] = useState("");
   const [isValidatingPromo, setIsValidatingPromo] = useState(false);
+  const [isOnWaitlist, setIsOnWaitlist] = useState(false);
+  const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
+  const [isJoiningWaitlist, setIsJoiningWaitlist] = useState(false);
 
   useEffect(() => {
     eventsAPI
@@ -49,6 +52,28 @@ export default function EventPage() {
       return;
     }
     setShowModal(true);
+  };
+
+  const handleJoinWaitlist = async () => {
+    if (!event) return;
+
+    if (!token) {
+      router.push(`/login?callbackUrl=/events/${event.id}`);
+      return;
+    }
+
+    setIsJoiningWaitlist(true);
+    try {
+      const res = await waitlistAPI.join(token, event.id);
+      setIsOnWaitlist(true);
+      setWaitlistPosition(res.data.position);
+      alert(`Successfully joined waitlist! Your position is #${res.data.position}`);
+    } catch (error: unknown) {
+      console.error("Failed to join waitlist:", error);
+      alert(error instanceof Error ? error.message : "Failed to join waitlist");
+    } finally {
+      setIsJoiningWaitlist(false);
+    }
   };
 
   const handleApplyPromo = async () => {
@@ -95,6 +120,33 @@ export default function EventPage() {
     return basePrice - promoDiscount.value;
   };
 
+  const hasTiers = event?.seatTiers && event.seatTiers.length > 0;
+  const isCancelled = event?.status === "CANCELLED";
+  const isSoldOut = hasTiers
+    ? event?.seatTiers!.every((t) => t.soldCount >= t.capacity)
+    : (event?.soldCount || 0) >= (event?.capacity || 0);
+
+  useEffect(() => {
+    if (!token || !event?.id || !isSoldOut) return;
+
+    const checkWaitlistStatus = async () => {
+      try {
+        const res = await waitlistAPI.getPosition(token, event.id);
+        if (res.data.position) {
+          setIsOnWaitlist(true);
+          setWaitlistPosition(res.data.position);
+        } else {
+          setIsOnWaitlist(false);
+          setWaitlistPosition(null);
+        }
+      } catch (error) {
+        console.error("Failed to check waitlist status:", error);
+      }
+    };
+
+    checkWaitlistStatus();
+  }, [token, event?.id, isSoldOut]);
+
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-[50vh]"><Spinner size="lg" /></div>;
   }
@@ -103,13 +155,22 @@ export default function EventPage() {
     return <div className="container py-8 text-center text-red-600">{error || "Event not found"}</div>;
   }
 
-  const hasTiers = event.seatTiers && event.seatTiers.length > 0;
-  const isCancelled = event.status === "CANCELLED";
-  const isSoldOut = hasTiers
-    ? event.seatTiers!.every((t) => t.soldCount >= t.capacity)
-    : event.soldCount >= event.capacity;
   const isPastEvent = new Date(event.date) < new Date();
-  const isDisabled = isSoldOut || isCancelled || isPastEvent;
+  const isDisabled = isCancelled || isPastEvent || (isSoldOut && isOnWaitlist);
+
+  const handleLeaveWaitlist = async () => {
+    if (!token) return;
+
+    try {
+      await waitlistAPI.leave(token, event.id);
+      setIsOnWaitlist(false);
+      setWaitlistPosition(null);
+      alert("Successfully left the waitlist");
+    } catch (error: unknown) {
+      console.error("Failed to leave waitlist:", error);
+      alert(error instanceof Error ? error.message : "Failed to leave waitlist");
+    }
+  };
 
   return (
     <div className="container py-8">
@@ -270,9 +331,43 @@ export default function EventPage() {
 
               {purchaseError && <Alert variant="error">{purchaseError}</Alert>}
 
-              <Button className="w-full" size="lg" disabled={isDisabled} onClick={handlePurchase}>
-                {isCancelled ? "Event Cancelled" : isSoldOut ? "Sold Out" : isPastEvent ? "Event Ended" : "Buy Ticket"}
-              </Button>
+              {isCancelled ? (
+                <Button disabled className="w-full" size="lg">
+                  Event Cancelled
+                </Button>
+              ) : isPastEvent ? (
+                <Button disabled className="w-full" size="lg">
+                  Event Ended
+                </Button>
+              ) : isOnWaitlist ? (
+                <div className="space-y-2">
+                  <Button disabled className="w-full bg-orange-600" size="lg">
+                    On Waitlist - Position #{waitlistPosition}
+                  </Button>
+                  <Button variant="secondary" className="w-full" onClick={handleLeaveWaitlist}>
+                    Leave Waitlist
+                  </Button>
+                </div>
+              ) : isSoldOut ? (
+                <Button
+                  className="w-full bg-orange-600 hover:bg-orange-700"
+                  size="lg"
+                  onClick={handleJoinWaitlist}
+                  isLoading={isJoiningWaitlist}
+                >
+                  Join Waitlist
+                </Button>
+              ) : (
+                <Button className="w-full" size="lg" onClick={handlePurchase} disabled={hasTiers ? !selectedTier : false}>
+                  Buy Ticket
+                </Button>
+              )}
+
+              {isOnWaitlist && waitlistPosition && (
+                <p className="text-center text-sm text-orange-600">
+                  You are #{waitlistPosition} on the waitlist
+                </p>
+              )}
 
               {isPastEvent && !isCancelled && <p className="text-center text-sm text-gray-500">This event has ended</p>}
             </CardContent>
